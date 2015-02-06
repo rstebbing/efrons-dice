@@ -11,8 +11,6 @@ from __future__ import print_function, division
 
 import argparse
 import sys
-from itertools import chain
-from operator import add
 from time import time
 
 import numpy as np
@@ -62,92 +60,63 @@ def num_wins_matrix(D):
     return np.dot(D, E.T)
 
 
-# argmax
-def argmax(x, is_valid=None, return_max=False):
-    x = np.asarray(x)
-    if x.size <= 0:
-        raise ValueError('x.size <= 0')
+# max_sum
+def max_sum(A, B):
+    A, B = np.atleast_2d(A, B)
+    (num_rows_A, num_cols_A), (num_rows_B, num_cols_B) = A.shape, B.shape
+    if num_cols_A != num_rows_B:
+        raise ValueError('num_cols_A != num_rows_B ({} vs {})'.format(
+            num_cols_A, num_rows_B))
 
-    if is_valid is not None:
-        is_valid = np.asarray(is_valid, dtype=bool)
-        x = x[is_valid]
-        if x.size <= 0:
-            assert np.count_nonzero(is_valid) == 0
-            raise ValueError('count_nonzero(is_valid) == 0')
+    S = np.empty((num_rows_A, num_cols_B),
+                 dtype=np.promote_types(A.dtype, B.dtype))
+    for i in range(num_rows_A):
+        X = A[i][:, np.newaxis] + B
+        X.max(axis=0, out=S[i])
 
-    k = np.argwhere(x == np.amax(x)).ravel()
-    m = x[k[0]]
-    if is_valid is not None:
-        k = np.argwhere(is_valid).ravel()[k]
-    return (k, m) if return_max else k
+    return S
 
 
-# no_cycle_max_sum
-def no_cycle_max_sum(num_dice, W, is_start_end=None):
+# efrons_dice
+def efrons_dice(num_dice, W, verbose=False):
     if num_dice < 2:
         raise ValueError('num_dice < 2 (= {})'.format(num_dice))
 
-    (num_unique_dice, _) = W.shape
-    r = np.arange(num_unique_dice)
-
-    L, V = [], []
-    def _next(Z, is_start_end=None):
-        Li = [argmax(z, is_start_end) for z in Z]
-        L.append(Li)
-
-        li = [l[0] for l in Li]
-        Vi = Z[r, li]
-        V.append(Vi)
-
-        return W + Vi
-
-    Z = _next(W, is_start_end)
+    S, Z = W, []
     for i in range(num_dice - 1):
-        Z = _next(Z)
-
-    def _labels(i, l0):
-        if i >= num_dice:
-            yield l0
-        else:
-            for j in L[num_dice - 1 - i][l0[i]]:
-                for l in _labels(i + 1, l0 + [j]):
-                    yield l
-
-    i, s = argmax(V[-1], is_start_end, return_max=True)
-    return chain(*[_labels(0, [_i]) for _i in i]), s
-
-
-# single_cycle_max_sum_linear_scan
-def single_cycle_max_sum_linear_scan(num_dice, W, verbose=False):
-    if num_dice < 2:
-        raise ValueError('num_dice < 2 (= {})'.format(num_dice))
-
-    (num_unique_dice, _) = W.shape
-
-    is_start_end = np.zeros(num_unique_dice, dtype=bool)
-    s, l = -1, []
-
-    for i in range(num_unique_dice):
+        Z.append(S)
         if verbose:
-            sys.stdout.write('\r{}/{} ({})'.format(i + 1, num_unique_dice, s))
+            sys.stdout.write('\rmax_sum: {}/{}'.format(i + 1, num_dice - 1))
             sys.stdout.flush()
-
-        is_start_end[i] = True
-        li, si = no_cycle_max_sum(num_dice, W, is_start_end)
-        if si > s:
-            del l[:]
-            l.append(li)
-            s = si
-        elif si == s:
-            l.append(li)
-        is_start_end[i] = False
-
+        S = max_sum(W, S)
     if verbose:
         sys.stdout.write('\n')
 
-    if l:
-        l = chain(*l)
-    return l, s
+    s = np.diag(S)
+    m = s.max()
+    if m < 0:
+        return None, m
+
+    def _l(i, lx, l0):
+        x = W[lx] + Z[i][:, l0]
+        Ly = np.flatnonzero(x == x.max())
+        if i <= 0:
+            for ly in Ly:
+                yield [ly]
+        else:
+            for ly in Ly:
+                for l in _l(i - 1, ly, l0):
+                    l.append(ly)
+                    yield l
+
+    l0s = np.flatnonzero(s == m)
+    def _ls():
+        for l0 in l0s:
+            for l in _l(num_dice - 2, l0, l0):
+                l.append(l0)
+                yield l[::-1]
+
+    return _ls(), m
 
 
 # main
@@ -179,6 +148,7 @@ if __name__ == '__main__':
     W = num_wins_matrix(D)
 
     num_outcomes = num_sides * num_sides
+    print('num_outcomes: {}'.format(num_outcomes))
     greater_than_one_half = num_outcomes // 2 + 1
     ij = np.nonzero(W < greater_than_one_half)
     W[ij] = -num_dice * num_outcomes
@@ -189,15 +159,17 @@ if __name__ == '__main__':
         Wi = W.copy()
         if w >= 0:
             Wi[Wi != w] = -num_dice * num_outcomes
-        l, s = single_cycle_max_sum_linear_scan(num_dice, Wi,
-                                                verbose=args.output_progress)
+        l, s = efrons_dice(num_dice, Wi, verbose=args.output_progress)
+
         if s < 0:
             continue
+
         print('s:', s)
-        for i, li in enumerate(l, start=0):
-            print('{}:'.format(i), li[:-1])
-            print(D[li[:-1]])
+        for i, li in enumerate(l):
+            print('{}:'.format(i), li)
+            print(D[li])
         print('({})'.format(i + 1))
 
     t1 = time()
+
     print('Time taken: {:.3f}s'.format(t1 - t0))
