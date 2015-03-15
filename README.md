@@ -2,7 +2,6 @@ efrons-dice
 ===========
 
 [efrons_dice.py](efrons_dice.py) is a Python program which finds non-transitive dice combinations (e.g. [Efron's dice](http://en.wikipedia.org/wiki/Nontransitive_dice#Efron.27s_dice)) by selecting combinations of dice to maximise the *sum* of the number of times each dice beats its (next) neighbour.
-Although this discrete optimisation problem contains a cycle, it can be "broken" and an algorithm akin to [`min-sum`](http://en.wikipedia.org/wiki/Belief_propagation) is run multiple times to find *all* maximum configurations.
 
 Author: Richard Stebbing
 
@@ -39,16 +38,6 @@ s: 104
  [0 0 0 6 0 0 0]
  [0 0 4 0 0 0 2]
  [0 2 0 0 0 4 0]]
-...
-(100)
-
-2/19> 19
-s: 76
-0: [71, 166, 407, 479]
-[[0 0 0 3 2 0 1]
- [0 0 2 2 0 1 1]
- [0 3 0 0 0 1 2]
- [1 0 0 0 3 2 0]]
 ...
 <b>7/19> 24</b>
 s: 96
