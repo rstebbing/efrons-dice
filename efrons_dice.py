@@ -38,7 +38,7 @@ def enumerate_unique_dice(num_sides, num_labels):
         return []
 
     def _enumerate_unique_dice_reverse(i, j):
-        if i >= num_labels - 2:
+        if i >= num_labels - 1:
             yield [num_sides, j]
         else:
             for k in range(j, num_sides + 1):
@@ -46,7 +46,7 @@ def enumerate_unique_dice(num_sides, num_labels):
                     s.append(j)
                     yield s
 
-    A_r = np.array(list(_enumerate_unique_dice_reverse(-1, 0)))
+    A_r = np.array(list(_enumerate_unique_dice_reverse(0, 0)))
     A = A_r[:, ::-1]
     D = A[:, 1:] - A[:, :-1]
     return D
